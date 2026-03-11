@@ -1,3 +1,7 @@
 data/
 .env
 reference/
+.agent/
+.vscode/
+rebuild_drone_agent.egg-info/
+model/
