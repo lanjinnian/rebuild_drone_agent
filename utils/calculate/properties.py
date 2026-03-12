@@ -2,6 +2,7 @@
 
 import cv2
 from utils.datatype.Frame import Frame
+import math
 
 def image_clarity(Frame, scale = 0.5):
     """
@@ -9,7 +10,7 @@ def image_clarity(Frame, scale = 0.5):
     Args:
         Frame(Frame):当前帧
         scale(float):缩放比例
-    Return:
+    Returns:
         float:清晰度得分
     """
     img = Frame.image   #[3, h, w]
@@ -30,7 +31,10 @@ def overleap_degree(Frame1, Frame2, scale = 0.5, max_features = 500, distance_ra
     Args:
         Frame1(Frame):第一帧
         Frame2(Frame):第二帧
-    Return:
+        scale(float):下采样倍率
+        max_features(int):单张图片特征点最大数量
+        distance_rate(float):有效特征点阈值
+    Returns:
         int:重叠对数量
     """
     img1 = Frame1.image
@@ -44,29 +48,91 @@ def overleap_degree(Frame1, Frame2, scale = 0.5, max_features = 500, distance_ra
     resized2 = cv2.resize(gray2, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
     
     orb = ORB_create(nfeatures=max_features)
-    kp1, des1 = orb.detectAndCompute(resized1, None)
-    kp2, des2 = orb.detectAndCompute(resized2, None)
+    kp1, des1 = orb.detectAndCompute(img1, None)
+    kp2, des2 = orb.detectAndCompute(img2, None)
 
     bf = cv2.BFMatcher(cv2.NORM_HAMMING)     #使用汉明距离表示相似度,越小越相似
-    matches = bf.knnMatch(des1, des2, k=2)   #返回值按顺序包括从大到小的两组匹配点
+    matches = bf.knnMatch(des1, des2, k=2) 
 
-    n = 0
+    overleap_number = 0
     for pair in matches:
         if len(pair) == 2:
             m, n = pair
             if m.distance < distance_rate * n.distance:  #确保匹配是有效的
-                n += 1
+                overleap_number += 1
     
     return n
 
 
-def ave_move(Frame1, Frame2):
+def ave_move(Frame1, Frame2, scale = 0.5, max_features = 500, distance_rate = 0):
     """
     计算平均移动距离
     Args:
         Frame1(Frame):第一帧
         Frame2(Frame):第二帧
-    Return:
-        float:平均移动距离
+        scale(float):下采样倍率
+        max_features(int):单张图片特征点最大数量
+        distance_rate(float):有效特征点阈值
+    Returns:
+        float:缩放后图像的平均移动距离
     """
-    #TODO: 写完这段
+    img1 = Frame1.image
+    img2 = Frame2.image
+
+    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+
+    h, w = gray1.shape
+    resized1 = cv2.resize(gray1, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
+    resized2 = cv2.resize(gray2, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
+
+    orb = ORB_create(nfeatures=max_features)
+    kp1, des1 = orb.detectAndCompute(img1, None)
+    kp2, des2 = orb.detectAndCompute(img2, None)
+
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING)     #使用汉明距离表示相似度,越小越相似
+    matches = bf.knnMatch(des1, des2, k=2) 
+
+    useable_number = 0
+    sum_distance = 0
+    for pair in matches:
+        if len(pair) == 2:
+            m, n = pair
+            if m.distance < distance_rate * n.distance:  #确保匹配是有效的
+                useable_number += 1
+                point1 = kp1[m.queryIdx].pt
+                point2 = kp2[m.trainIdx].pt
+                sum_distance += math.dist(point1, point2)
+    ave_distance = sum_distance / useable_number
+    
+    return ave_distance
+
+
+def time_distance(Frame1, Frame2):
+    """
+    计算两帧之间的时间距离
+    Args:
+        Frame1(Frame):第一帧
+        Frame2(Frame):第二帧
+    Returns:
+        int:时间戳差值
+    """
+    time1 = Frame1.timestamp
+    time2 = Frame2.timestamp
+
+    if time2 >= time1:
+        return time2 - time1
+    elif time2 < time1:
+        return time1 - time2
+
+
+def information_gain(Frame1, Frame2):
+    """
+    计算两帧之间的信息增益
+    Args:
+        Frame1(Frame):第一帧
+        Frame2(Frame):第二帧
+    Returns:
+        float:两帧之间的信息增益
+    """
+    
