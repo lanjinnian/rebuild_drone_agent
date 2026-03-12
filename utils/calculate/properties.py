@@ -4,16 +4,16 @@ import cv2
 from utils.datatype.Frame import Frame
 import math
 
-def image_clarity(Frame, scale = 0.5):
+def image_clarity(frame, scale = 0.5):
     """
     计算图像的清晰度
     Args:
-        Frame(Frame):当前帧
+        frame(Frame):当前帧
         scale(float):缩放比例
     Returns:
         float:清晰度得分
     """
-    img = Frame.image   #[3, h, w]
+    img = frame.image   #[h, w, 3]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     h, w = gray.shape
@@ -25,20 +25,23 @@ def image_clarity(Frame, scale = 0.5):
     return float(score)
 
 
-def overleap_degree(Frame1, Frame2, scale = 0.5, max_features = 500, distance_rate = 0.75):
+def overleap_point(frame1, frame2, scale = 0.5, max_features = 500, distance_rate = 0.75):
     """
-    计算两张图片的重叠度
+    计算两张图片的重叠点数量
     Args:
-        Frame1(Frame):第一帧
-        Frame2(Frame):第二帧
+        frame1(Frame):第一帧
+        frame2(Frame):第二帧
         scale(float):下采样倍率
         max_features(int):单张图片特征点最大数量
         distance_rate(float):有效特征点阈值
     Returns:
-        int:重叠对数量
+        int:重叠对数
     """
-    img1 = Frame1.image
-    img2 = Frame2.image
+    #TODO:重复纹理
+    #TODO:修改为重叠率
+    #TODO:异常处理
+    img1 = frame1.image
+    img2 = frame2.image
 
     gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
@@ -47,9 +50,9 @@ def overleap_degree(Frame1, Frame2, scale = 0.5, max_features = 500, distance_ra
     resized1 = cv2.resize(gray1, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
     resized2 = cv2.resize(gray2, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
     
-    orb = ORB_create(nfeatures=max_features)
-    kp1, des1 = orb.detectAndCompute(img1, None)
-    kp2, des2 = orb.detectAndCompute(img2, None)
+    orb = cv2.ORB_create(nfeatures=max_features)
+    kp1, des1 = orb.detectAndCompute(resized1, None)
+    kp2, des2 = orb.detectAndCompute(resized2, None)
 
     bf = cv2.BFMatcher(cv2.NORM_HAMMING)     #使用汉明距离表示相似度,越小越相似
     matches = bf.knnMatch(des1, des2, k=2) 
@@ -61,23 +64,25 @@ def overleap_degree(Frame1, Frame2, scale = 0.5, max_features = 500, distance_ra
             if m.distance < distance_rate * n.distance:  #确保匹配是有效的
                 overleap_number += 1
     
-    return n
+    return overleap_number
 
 
-def ave_move(Frame1, Frame2, scale = 0.5, max_features = 500, distance_rate = 0):
+def ave_move(frame1, frame2, scale = 0.5, max_features = 500, distance_rate = 0.75):
     """
     计算平均移动距离
     Args:
-        Frame1(Frame):第一帧
-        Frame2(Frame):第二帧
+        frame1(Frame):第一帧
+        frame2(Frame):第二帧
         scale(float):下采样倍率
         max_features(int):单张图片特征点最大数量
         distance_rate(float):有效特征点阈值
     Returns:
         float:缩放后图像的平均移动距离
     """
-    img1 = Frame1.image
-    img2 = Frame2.image
+    #TODO:异常处理
+    #TODO:下采样还原
+    img1 = frame1.image
+    img2 = frame2.image
 
     gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
@@ -86,9 +91,9 @@ def ave_move(Frame1, Frame2, scale = 0.5, max_features = 500, distance_rate = 0)
     resized1 = cv2.resize(gray1, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
     resized2 = cv2.resize(gray2, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
 
-    orb = ORB_create(nfeatures=max_features)
-    kp1, des1 = orb.detectAndCompute(img1, None)
-    kp2, des2 = orb.detectAndCompute(img2, None)
+    orb = cv2.ORB_create(nfeatures=max_features)
+    kp1, des1 = orb.detectAndCompute(resized1, None)
+    kp2, des2 = orb.detectAndCompute(resized2, None)
 
     bf = cv2.BFMatcher(cv2.NORM_HAMMING)     #使用汉明距离表示相似度,越小越相似
     matches = bf.knnMatch(des1, des2, k=2) 
@@ -103,36 +108,34 @@ def ave_move(Frame1, Frame2, scale = 0.5, max_features = 500, distance_rate = 0)
                 point1 = kp1[m.queryIdx].pt
                 point2 = kp2[m.trainIdx].pt
                 sum_distance += math.dist(point1, point2)
-    ave_distance = sum_distance / useable_number
-    
-    return ave_distance
+    try:
+        return sum_distance / useable_number
+    except ZeroDivisionError:
+        return -1.0
 
 
-def time_distance(Frame1, Frame2):
+def time_distance(frame1, frame2):
     """
     计算两帧之间的时间距离
     Args:
-        Frame1(Frame):第一帧
-        Frame2(Frame):第二帧
+        frame1(Frame):第一帧
+        frame2(Frame):第二帧
     Returns:
         int:时间戳差值
     """
-    time1 = Frame1.timestamp
-    time2 = Frame2.timestamp
+    time1 = frame1.timestamp
+    time2 = frame2.timestamp
 
-    if time2 >= time1:
-        return time2 - time1
-    elif time2 < time1:
-        return time1 - time2
+    return abs(time2 - time1)
 
 
-def information_gain(Frame1, Frame2):
+def information_gain(frame1, frame2):
     """
     计算两帧之间的信息增益
     Args:
-        Frame1(Frame):第一帧
-        Frame2(Frame):第二帧
+        frame1(Frame):第一帧
+        frame2(Frame):第二帧
     Returns:
         float:两帧之间的信息增益
     """
-    
+    #TODO:写完这段
