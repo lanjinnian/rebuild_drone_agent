@@ -1,0 +1,36 @@
+"""
+数据预处理阶段Frame整体组合
+"""
+
+from utils.datatype.Frame import Frame
+
+class OriginalFrames:
+    def __init__(self):
+        self.frame_number = 0       #帧的数量
+        self.frame_id_list = []     #帧的id列表
+        self.frames = []            #帧的列表
+
+
+    def add_frame(self, frame):
+        """
+        添加帧
+        Args:
+            frame(Frame):需要添加的帧
+        """
+        self.frame_number += 1
+        self.frame_id_list.append(frame.id)
+        self.frames.append(frame)
+
+
+    def delete_frame(self, id):
+        """
+        删除帧
+        Args:
+            id(int):需要删除的帧的id
+        """
+        location = self.frame_id_list.index(id)
+        self.frame_id_list.remove(id)
+        self.frames.pop(location)
+
+
+    def 
