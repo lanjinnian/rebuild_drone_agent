@@ -1,4 +1,10 @@
-#计算图片相关属性用于关键帧的筛选
+"""
+计算图片相关属性用于关键帧的筛选
+image_clarity: 计算图像的清晰度
+overleap_point: 计算两张图片的重叠点数量
+ave_move: 计算图像的平均移动距离
+time_distance: 计算两张图片的时间间隔
+"""
 
 import cv2
 from utils.datatype.Frame import Frame
@@ -50,9 +56,9 @@ def overleap_point(frame1, frame2, scale = 0.5, max_features = 500, distance_rat
     resized1 = cv2.resize(gray1, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
     resized2 = cv2.resize(gray2, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
     
-    orb = cv2.ORB_create(nfeatures=max_features)
-    kp1, des1 = orb.detectAndCompute(resized1, None)
-    kp2, des2 = orb.detectAndCompute(resized2, None)
+    orb = cv2.ORB.create(nfeatures=max_features)
+    kp1, des1 = orb.detectAndCompute(resized1, None)   # type: ignore
+    kp2, des2 = orb.detectAndCompute(resized2, None)  # type: ignore
 
     bf = cv2.BFMatcher(cv2.NORM_HAMMING)     #使用汉明距离表示相似度,越小越相似
     matches = bf.knnMatch(des1, des2, k=2) 
@@ -91,9 +97,9 @@ def ave_move(frame1, frame2, scale = 0.5, max_features = 500, distance_rate = 0.
     resized1 = cv2.resize(gray1, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
     resized2 = cv2.resize(gray2, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_AREA)
 
-    orb = cv2.ORB_create(nfeatures=max_features)
-    kp1, des1 = orb.detectAndCompute(resized1, None)
-    kp2, des2 = orb.detectAndCompute(resized2, None)
+    orb = cv2.ORB.create(nfeatures=max_features)
+    kp1, des1 = orb.detectAndCompute(resized1, None)  # type: ignore
+    kp2, des2 = orb.detectAndCompute(resized2, None)  # type: ignore
 
     bf = cv2.BFMatcher(cv2.NORM_HAMMING)     #使用汉明距离表示相似度,越小越相似
     matches = bf.knnMatch(des1, des2, k=2) 
@@ -128,14 +134,3 @@ def time_distance(frame1, frame2):
 
     return abs(time2 - time1)
 
-
-def information_gain(frame1, frame2):
-    """
-    计算两帧之间的信息增益
-    Args:
-        frame1(Frame):第一帧
-        frame2(Frame):第二帧
-    Returns:
-        float:两帧之间的信息增益
-    """
-    #TODO:写完这段
