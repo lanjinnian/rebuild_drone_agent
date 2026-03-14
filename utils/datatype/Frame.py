@@ -30,18 +30,4 @@ class Frame:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-
-    def get_metadata(self):
-        """
-        获取帧的元数据
-        
-        Returns:
-            dict: 包含 id, timestamp, location, shape 的字典
-        """
-        return {
-            "id": self.id,
-            "timestamp": self.timestamp,
-            "location": self.location,
-            "shape": self.image.shape if self.image is not None else None
-        }
     

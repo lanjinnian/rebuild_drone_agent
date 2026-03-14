@@ -114,16 +114,3 @@ def ave_move(img1, img2, scale = 0.5, max_features = 500, distance_rate = 0.75):
     except ZeroDivisionError:
         return -1.0
 
-
-def time_distance(time1, time2):
-    """
-    计算两帧之间的时间距离
-    Args:
-        time1(float or int):第一帧时间戳
-        time2(float or int):第二帧时间戳
-    Returns:
-        float or int:时间戳差值
-    """
-
-    return abs(time2 - time1)
-
