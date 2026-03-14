@@ -3,6 +3,8 @@
 数据的加载部分,由于数据缺乏,暂时使用视频加载得到
 """
 
+from utils.datatype.OriginalFrames import OriginalFrames
+
 
 def data_load(path):
     """

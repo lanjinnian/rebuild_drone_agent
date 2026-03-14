@@ -7,19 +7,18 @@ time_distance: 计算两张图片的时间间隔
 """
 
 import cv2
-from utils.datatype.Frame import Frame
+import numpy as np
 import math
 
-def image_clarity(frame, scale = 0.5):
+def image_clarity(img, scale = 0.5):
     """
     计算图像的清晰度
     Args:
-        frame(Frame):当前帧
+        img(np.ndarray):当前帧图像 [h, w, 3]
         scale(float):缩放比例
     Returns:
         float:清晰度得分
     """
-    img = frame.image   #[h, w, 3]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     h, w = gray.shape
@@ -31,12 +30,12 @@ def image_clarity(frame, scale = 0.5):
     return float(score)
 
 
-def overleap_point(frame1, frame2, scale = 0.5, max_features = 500, distance_rate = 0.75):
+def overleap_point(img1, img2, scale = 0.5, max_features = 500, distance_rate = 0.75):
     """
     计算两张图片的重叠点数量
     Args:
-        frame1(Frame):第一帧
-        frame2(Frame):第二帧
+        img1(np.ndarray):第一帧图像
+        img2(np.ndarray):第二帧图像
         scale(float):下采样倍率
         max_features(int):单张图片特征点最大数量
         distance_rate(float):有效特征点阈值
@@ -46,8 +45,6 @@ def overleap_point(frame1, frame2, scale = 0.5, max_features = 500, distance_rat
     #TODO:重复纹理
     #TODO:修改为重叠率
     #TODO:异常处理
-    img1 = frame1.image
-    img2 = frame2.image
 
     gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
@@ -73,12 +70,12 @@ def overleap_point(frame1, frame2, scale = 0.5, max_features = 500, distance_rat
     return overleap_number
 
 
-def ave_move(frame1, frame2, scale = 0.5, max_features = 500, distance_rate = 0.75):
+def ave_move(img1, img2, scale = 0.5, max_features = 500, distance_rate = 0.75):
     """
     计算平均移动距离
     Args:
-        frame1(Frame):第一帧
-        frame2(Frame):第二帧
+        img1(np.ndarray):第一帧图像
+        img2(np.ndarray):第二帧图像
         scale(float):下采样倍率
         max_features(int):单张图片特征点最大数量
         distance_rate(float):有效特征点阈值
@@ -87,8 +84,6 @@ def ave_move(frame1, frame2, scale = 0.5, max_features = 500, distance_rate = 0.
     """
     #TODO:异常处理
     #TODO:下采样还原
-    img1 = frame1.image
-    img2 = frame2.image
 
     gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
@@ -120,17 +115,15 @@ def ave_move(frame1, frame2, scale = 0.5, max_features = 500, distance_rate = 0.
         return -1.0
 
 
-def time_distance(frame1, frame2):
+def time_distance(time1, time2):
     """
     计算两帧之间的时间距离
     Args:
-        frame1(Frame):第一帧
-        frame2(Frame):第二帧
+        time1(float or int):第一帧时间戳
+        time2(float or int):第二帧时间戳
     Returns:
-        int:时间戳差值
+        float or int:时间戳差值
     """
-    time1 = frame1.timestamp
-    time2 = frame2.timestamp
 
     return abs(time2 - time1)
 

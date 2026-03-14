@@ -3,6 +3,8 @@
 """
 
 from utils.datatype.Frame import Frame
+import numpy as np
+import os
 
 class OriginalFrames:
     def __init__(self):
@@ -33,4 +35,20 @@ class OriginalFrames:
         self.frames.pop(location)
 
 
-    def 
+    def change_frame(self, id, new_frame):
+        """
+        修改特定帧
+        Args:
+            id(int):需要修改的帧的id
+            new_frame(Frame):改动为该帧
+        Raises:
+            ValueError:新帧的id不匹配
+        Notes:
+            - 只修改帧的内容,不修改帧的id
+        """
+        location = self.frame_id_list.index(id)
+        if new_frame.id == id:
+            self.frames[location] = new_frame
+        else:
+            raise ValueError("新帧的id必须与原有的帧相匹配")
+        

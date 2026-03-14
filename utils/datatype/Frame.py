@@ -31,33 +31,6 @@ class Frame:
         cv2.destroyAllWindows()
 
 
-    def save(self, filename=None, directory=None):
-        """
-        保存帧为 .npy 文件
-        
-        Args:
-            filename (str, optional): 文件名（不需要扩展名，会自动添加 .npy）
-            directory (str, optional): 保存目录，默认为当前目录
-        
-        Raises:
-            ValueError: 如果图像数据为 None，或未提供文件名
-        """
-        if self.image is None:
-            raise ValueError(f"Frame {self.id} has no image data to save")
-        
-        if filename is None:
-            raise ValueError("Must provide 'filename'")
-        
-        if directory is None:
-            directory = "."
-        
-        if not filename.endswith('.npy'):
-            filename = f"{filename}.npy"
-        
-        filepath = os.path.join(directory, filename)
-        np.save(filepath, self.image)
-
-
     def get_metadata(self):
         """
         获取帧的元数据
