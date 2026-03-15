@@ -22,7 +22,7 @@ SELECTED_METHOD = 'MSR'
 
 def test_lighting_process():
     # 使用 example 中的图片
-    img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "examples", "picture", "02_H_4", "000003.png")
+    img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "examples", "picture", "02_H_4", "000000.png")
     
     # 尺寸裁剪为1024
     target_size = 1024
@@ -47,6 +47,7 @@ def test_lighting_process():
         processed_img = control_lighting_by_clahe(sized_img, clipLimit=2.0, tileGridSize=(8, 8))
     elif SELECTED_METHOD == 'MSR':
         processed_img = control_lighting_by_msr(sized_img)
+        processed_img = control_lighting_by_clahe(processed_img)
     else:
         print(f"错误: 不支持的方法 {SELECTED_METHOD}")
         return
@@ -56,7 +57,7 @@ def test_lighting_process():
     # 将处理前和处理后的图片拼接，方便作对比
     separator = np.ones((target_size, 10, 3), dtype=np.uint8) * 128
     comparison = cv2.hconcat([sized_img, separator, processed_img])
-    
+
     # 保存测试结果
     output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "test_result")
     os.makedirs(output_dir, exist_ok=True)

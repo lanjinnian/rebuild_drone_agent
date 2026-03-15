@@ -20,6 +20,8 @@ def remove_redundancy_by_classify(original_frames):
         OriginalFrames: 剔除冗余数据后的帧序列对象
     """
     new_frames = OriginalFrames()
-    for frame in original_frames.frames:
-        clarity_num = image_clarity(frame.image)
+    for id in original_frames.frame_id_list:
+        location = original_frames.frame_id_list.index(id)
+        frame1 = original_frames.frames[location-1]
+        frame2 = original_frames.frames[location]
         
