@@ -1,0 +1,22 @@
+project:
+  name: rebuild_drone_agent
+  seed: 42
+
+paths:
+  raw_data: data/raw
+  processed_data: data/processed
+  keyframes: data/keyframes
+  chunks: data/chunks
+  outputs: data/outputs
+  results: results
+
+pipeline:
+  stages:
+    - extract_frames
+    - select_keyframes
+    - reconstruct_chunks
+    - align_chunks
+    - fuse_scene
+
+logging:
+  level: INFO

@@ -1,0 +1,1 @@
+- 项目在虚拟环境rebuild_drone_agent中运行

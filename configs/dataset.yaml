@@ -1,0 +1,21 @@
+dataset:
+  name: default_drone_dataset
+  video_extensions:
+    - .mp4
+    - .mov
+    - .avi
+  image_extensions:
+    - .jpg
+    - .jpeg
+    - .png
+
+preprocessing:
+  frame_stride: 5
+  max_frames: null
+  blur_threshold: 80.0
+  keyframe_min_distance: 0.15
+
+satellite:
+  enabled: false
+  image_path: null
+  georeference: null
