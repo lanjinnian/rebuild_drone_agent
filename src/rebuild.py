@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 import torch
+import trimesh
 
 from src.datatype import Chunk
 
@@ -138,9 +139,6 @@ def rebuild_npz_to_glb(
     prediction_mode: str = "Predicted Pointmap",
 ) -> Path:
     """Convert a VGGT-style npz prediction file to GLB."""
-    _ensure_vggt_reference_importable()
-    from visual_util import predictions_to_glb
-
     npz_path = Path(npz_path)
     if output_path is None:
         output_path = npz_path.with_suffix(".glb")
@@ -148,7 +146,7 @@ def rebuild_npz_to_glb(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     predictions = load_rebuild_predictions_for_glb(npz_path)
-    glb_scene = predictions_to_glb(
+    glb_scene = rebuild_predictions_to_glb_scene(
         predictions,
         conf_thres=conf_thres,
         filter_by_frames=filter_by_frames,
@@ -156,7 +154,6 @@ def rebuild_npz_to_glb(
         mask_white_bg=mask_white_bg,
         show_cam=show_cam,
         mask_sky=mask_sky,
-        target_dir=str(npz_path.parent),
         prediction_mode=prediction_mode,
     )
     glb_scene.export(file_obj=str(output_path))
@@ -164,13 +161,155 @@ def rebuild_npz_to_glb(
 
 
 def load_rebuild_predictions_for_glb(npz_path: str | Path) -> dict[str, NDArray[Any]]:
-    """Load the subset of VGGT predictions required by visual_util.predictions_to_glb."""
+    """Load the subset of VGGT predictions required for GLB conversion."""
     npz_path = Path(npz_path)
     with np.load(npz_path) as loaded:
         missing_keys = [key for key in VGGT_GLB_KEYS if key not in loaded.files]
         if missing_keys:
             raise KeyError(f"{npz_path} is missing GLB prediction keys: {missing_keys}")
         return {key: np.array(loaded[key]) for key in VGGT_GLB_KEYS}
+
+
+def rebuild_predictions_to_glb_scene(
+    predictions: dict[str, NDArray[Any]],
+    conf_thres: float = 50.0,
+    filter_by_frames: str = "all",
+    mask_black_bg: bool = False,
+    mask_white_bg: bool = False,
+    show_cam: bool = True,
+    mask_sky: bool = False,
+    prediction_mode: str = "Predicted Pointmap",
+) -> trimesh.Scene:
+    """Build a previewable GLB scene from VGGT-style predictions."""
+    if mask_sky:
+        raise NotImplementedError("mask_sky requires the reference VGGT sky segmentation assets")
+
+    world_points, confidence = _select_glb_points_and_confidence(
+        predictions,
+        prediction_mode,
+    )
+    images = _images_to_nhwc(predictions["images"])
+
+    world_points, confidence, images = _select_glb_frame(
+        world_points,
+        confidence,
+        images,
+        filter_by_frames,
+    )
+
+    vertices = world_points.reshape(-1, 3)
+    colors = (np.clip(images.reshape(-1, 3), 0.0, 1.0) * 255.0).astype(np.uint8)
+    confidence = confidence.reshape(-1)
+
+    mask = _build_glb_point_mask(
+        confidence,
+        colors,
+        conf_thres,
+        mask_black_bg,
+        mask_white_bg,
+    )
+    vertices = vertices[mask]
+    colors = colors[mask]
+
+    scene = trimesh.Scene()
+    scene.add_geometry(trimesh.PointCloud(vertices=vertices, colors=colors))
+
+    if show_cam:
+        camera_meshes = _build_camera_markers(predictions["extrinsic"], vertices)
+        for camera_mesh in camera_meshes:
+            scene.add_geometry(camera_mesh)
+
+    return scene
+
+
+def _select_glb_points_and_confidence(
+    predictions: dict[str, NDArray[Any]],
+    prediction_mode: str,
+) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+    if "Pointmap" in prediction_mode:
+        points = predictions["world_points"]
+        confidence = predictions["world_points_conf"]
+    else:
+        points = predictions["world_points_from_depth"]
+        confidence = predictions["depth_conf"]
+    return points, confidence
+
+
+def _images_to_nhwc(images: NDArray[np.floating]) -> NDArray[np.floating]:
+    if images.ndim != 4:
+        raise ValueError(f"images must have shape [S, C, H, W] or [S, H, W, C], got {images.shape}")
+    if images.shape[1] == 3:
+        return np.transpose(images, (0, 2, 3, 1))
+    if images.shape[-1] == 3:
+        return images
+    raise ValueError(f"images must have 3 color channels, got {images.shape}")
+
+
+def _select_glb_frame(
+    points: NDArray[np.floating],
+    confidence: NDArray[np.floating],
+    images: NDArray[np.floating],
+    filter_by_frames: str,
+) -> tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
+    if filter_by_frames in ("all", "All"):
+        return points, confidence, images
+
+    frame_index = int(filter_by_frames.split(":")[0])
+    return points[frame_index][None], confidence[frame_index][None], images[frame_index][None]
+
+
+def _build_glb_point_mask(
+    confidence: NDArray[np.floating],
+    colors: NDArray[np.uint8],
+    conf_thres: float,
+    mask_black_bg: bool,
+    mask_white_bg: bool,
+) -> NDArray[np.bool_]:
+    if conf_thres == 0.0:
+        threshold = 0.0
+    else:
+        threshold = np.percentile(confidence, conf_thres)
+
+    mask = (confidence >= threshold) & (confidence > 1e-5)
+
+    if mask_black_bg:
+        mask = mask & (colors.sum(axis=1) >= 16)
+
+    if mask_white_bg:
+        white_mask = (colors[:, 0] > 240) & (colors[:, 1] > 240) & (colors[:, 2] > 240)
+        mask = mask & ~white_mask
+
+    return mask
+
+
+def _build_camera_markers(
+    extrinsic: NDArray[np.floating],
+    points: NDArray[np.floating],
+) -> list[trimesh.Trimesh]:
+    if points.size == 0:
+        scene_scale = 1.0
+    else:
+        lower = np.percentile(points, 5, axis=0)
+        upper = np.percentile(points, 95, axis=0)
+        scene_scale = float(np.linalg.norm(upper - lower))
+        if scene_scale <= 0:
+            scene_scale = 1.0
+
+    marker_radius = scene_scale * 0.01
+    markers = []
+    for camera_extrinsic in extrinsic:
+        camera_to_world = np.linalg.inv(_to_homogeneous_extrinsic(camera_extrinsic))
+        marker = trimesh.creation.icosphere(subdivisions=1, radius=marker_radius)
+        marker.apply_translation(camera_to_world[:3, 3])
+        marker.visual.vertex_colors = np.array([255, 0, 0, 255], dtype=np.uint8)
+        markers.append(marker)
+    return markers
+
+
+def _to_homogeneous_extrinsic(extrinsic: NDArray[np.floating]) -> NDArray[np.float64]:
+    matrix = np.eye(4, dtype=np.float64)
+    matrix[:3, :4] = extrinsic
+    return matrix
 
 
 def chunk_to_vggt_images(chunk: Chunk, target_size: int = VGGT_TARGET_SIZE) -> torch.Tensor:
