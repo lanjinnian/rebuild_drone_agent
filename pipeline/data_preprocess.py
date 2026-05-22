@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 import pickle
 
-from src.config import RESULT_DIR
+from config import RESULT_DIR
 from src.datatype import Chunk
 from src.frame_chunk import split_original_frames_into_chunks
 from src.image_preprocess import preprocess_original_frames

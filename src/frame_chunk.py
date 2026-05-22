@@ -1,4 +1,4 @@
-from src.config import CHUNK_OVERLAP_SIZE, CHUNK_SIZE
+from config import CHUNK_OVERLAP_SIZE, CHUNK_SIZE
 from src.datatype import Chunk, OriginalFrames
 
 
@@ -36,4 +36,3 @@ def split_original_frames_into_chunks(
         chunk_id += 1
 
     return chunks
-

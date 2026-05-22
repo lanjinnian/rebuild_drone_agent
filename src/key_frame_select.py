@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from src.config import KEY_FRAME_DELETE_RATIO
+from config import KEY_FRAME_DELETE_RATIO
 from src.datatype import BaseFrame, OriginalFrames
 from utils.calcula import (
     calculate_optical_flow_score,
@@ -106,4 +106,3 @@ def _normalize_scores(scores: list[float]) -> list[float]:
 
     normalized = (values - min_value) / (max_value - min_value)
     return [float(score) for score in normalized]
-
