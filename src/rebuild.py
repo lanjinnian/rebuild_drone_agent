@@ -15,6 +15,17 @@ from src.datatype import Chunk
 
 VGGT_REFERENCE_DIR = Path(__file__).resolve().parents[1] / "reference" / "vggt"
 VGGT_TARGET_SIZE = 518
+VGGT_GLB_KEYS = [
+    "pose_enc",
+    "depth",
+    "depth_conf",
+    "world_points",
+    "world_points_conf",
+    "images",
+    "extrinsic",
+    "intrinsic",
+    "world_points_from_depth",
+]
 
 
 def load_vggt_model(
@@ -96,7 +107,7 @@ def rebuild_chunk(
         depth_map,
         np_predictions["extrinsic"],
         np_predictions["intrinsic"],
-    )
+    ).astype(np.float32)
     np_predictions["chunk_id"] = np.array(chunk.id)
     np_predictions["frame_ids"] = np.array(chunk.frame_ids, dtype=np.int64)
     np_predictions["gps_locations"] = _chunk_gps_locations(chunk)
@@ -113,6 +124,53 @@ def save_rebuild_predictions(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(output_path, **predictions)
     return output_path
+
+
+def rebuild_npz_to_glb(
+    npz_path: str | Path,
+    output_path: str | Path | None = None,
+    conf_thres: float = 50.0,
+    filter_by_frames: str = "all",
+    mask_black_bg: bool = False,
+    mask_white_bg: bool = False,
+    show_cam: bool = True,
+    mask_sky: bool = False,
+    prediction_mode: str = "Predicted Pointmap",
+) -> Path:
+    """Convert a VGGT-style npz prediction file to GLB."""
+    _ensure_vggt_reference_importable()
+    from visual_util import predictions_to_glb
+
+    npz_path = Path(npz_path)
+    if output_path is None:
+        output_path = npz_path.with_suffix(".glb")
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    predictions = load_rebuild_predictions_for_glb(npz_path)
+    glb_scene = predictions_to_glb(
+        predictions,
+        conf_thres=conf_thres,
+        filter_by_frames=filter_by_frames,
+        mask_black_bg=mask_black_bg,
+        mask_white_bg=mask_white_bg,
+        show_cam=show_cam,
+        mask_sky=mask_sky,
+        target_dir=str(npz_path.parent),
+        prediction_mode=prediction_mode,
+    )
+    glb_scene.export(file_obj=str(output_path))
+    return output_path
+
+
+def load_rebuild_predictions_for_glb(npz_path: str | Path) -> dict[str, NDArray[Any]]:
+    """Load the subset of VGGT predictions required by visual_util.predictions_to_glb."""
+    npz_path = Path(npz_path)
+    with np.load(npz_path) as loaded:
+        missing_keys = [key for key in VGGT_GLB_KEYS if key not in loaded.files]
+        if missing_keys:
+            raise KeyError(f"{npz_path} is missing GLB prediction keys: {missing_keys}")
+        return {key: np.array(loaded[key]) for key in VGGT_GLB_KEYS}
 
 
 def chunk_to_vggt_images(chunk: Chunk, target_size: int = VGGT_TARGET_SIZE) -> torch.Tensor:
@@ -151,7 +209,7 @@ def _select_autocast_dtype(device: torch.device) -> torch.dtype:
 
 def _autocast_context(device: torch.device, dtype: torch.dtype):
     if device.type == "cuda":
-        return torch.cuda.amp.autocast(dtype=dtype)
+        return torch.amp.autocast("cuda", dtype=dtype)
     return torch.autocast(device_type=device.type, dtype=dtype, enabled=False)
 
 

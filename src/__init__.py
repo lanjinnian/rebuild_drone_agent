@@ -6,9 +6,11 @@ from .key_frame_select import FrameScore, select_key_frames
 from .rebuild import (
     chunk_to_vggt_images,
     load_chunk,
+    load_rebuild_predictions_for_glb,
     load_vggt_model,
     rebuild_chunk,
     rebuild_chunk_to_npz,
+    rebuild_npz_to_glb,
     save_rebuild_predictions,
 )
 from .video_load import load_original_frames_from_video
@@ -25,10 +27,12 @@ __all__ = [
     "RESULT_DIR",
     "chunk_to_vggt_images",
     "load_chunk",
+    "load_rebuild_predictions_for_glb",
     "load_vggt_model",
     "preprocess_original_frames",
     "rebuild_chunk",
     "rebuild_chunk_to_npz",
+    "rebuild_npz_to_glb",
     "save_rebuild_predictions",
     "select_key_frames",
     "split_original_frames_into_chunks",
