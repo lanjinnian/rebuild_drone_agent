@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 import torch
 import trimesh
 
-from src.datatype import Chunk
+from src.datatype import Chunk, ChunkToProcess, FrameInChunk
 
 
 VGGT_REFERENCE_DIR = Path(__file__).resolve().parents[1] / "reference" / "vggt"
@@ -26,6 +26,14 @@ VGGT_GLB_KEYS = [
     "extrinsic",
     "intrinsic",
     "world_points_from_depth",
+]
+NPZ_LOAD_KEYS = [
+    "world_points_from_depth",
+    "depth_conf",
+    "images",
+    "chunk_id",
+    "frame_ids",
+    "gps_locations",
 ]
 
 
@@ -127,6 +135,46 @@ def save_rebuild_predictions(
     return output_path
 
 
+def npz_load(npz_path: str | Path) -> ChunkToProcess:
+    """Load reconstruction npz data into a ChunkToProcess object."""
+    npz_path = Path(npz_path)
+    with np.load(npz_path) as loaded:
+        missing_keys = [key for key in NPZ_LOAD_KEYS if key not in loaded.files]
+        if missing_keys:
+            raise KeyError(f"{npz_path} is missing ChunkToProcess keys: {missing_keys}")
+
+        world_points_from_depth = np.array(loaded["world_points_from_depth"])
+        depth_conf = np.array(loaded["depth_conf"])
+        images = np.array(loaded["images"])
+        chunk_id = int(np.array(loaded["chunk_id"]).item())
+        frame_ids = np.array(loaded["frame_ids"])
+        gps_locations = np.array(loaded["gps_locations"])
+
+    frame_count = len(frame_ids)
+    _validate_npz_load_frame_count(
+        npz_path,
+        frame_count,
+        world_points_from_depth=world_points_from_depth,
+        depth_conf=depth_conf,
+        images=images,
+        gps_locations=gps_locations,
+    )
+
+    chunk_to_process = ChunkToProcess(chunk_id=chunk_id, frames=[], frame_ids=[])
+    for frame_index, frame_id in enumerate(frame_ids):
+        frame = FrameInChunk(
+            id=int(frame_id),
+            image=images[frame_index],
+            gps_location=tuple(gps_locations[frame_index]),
+            chunk_id=chunk_id,
+            world_points=world_points_from_depth[frame_index],
+            world_points_conf=depth_conf[frame_index],
+        )
+        chunk_to_process.add_frame(frame)
+
+    return chunk_to_process
+
+
 def rebuild_npz_to_glb(
     npz_path: str | Path,
     output_path: str | Path | None = None,
@@ -168,6 +216,18 @@ def load_rebuild_predictions_for_glb(npz_path: str | Path) -> dict[str, NDArray[
         if missing_keys:
             raise KeyError(f"{npz_path} is missing GLB prediction keys: {missing_keys}")
         return {key: np.array(loaded[key]) for key in VGGT_GLB_KEYS}
+
+
+def _validate_npz_load_frame_count(
+    npz_path: Path,
+    frame_count: int,
+    **frame_arrays: NDArray[Any],
+) -> None:
+    for key, value in frame_arrays.items():
+        if value.shape[0] != frame_count:
+            raise ValueError(
+                f"{npz_path} has {frame_count} frame_ids but {key} has first dimension {value.shape[0]}"
+            )
 
 
 def rebuild_predictions_to_glb_scene(

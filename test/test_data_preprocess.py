@@ -7,6 +7,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from pipeline.data_preprocess import run_data_preprocess
 
-video_path = "data/example/814528380-1-208.mp4"
+video_path = "data/example/01.mp4"
 
 run_data_preprocess(video_path)

@@ -7,6 +7,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from pipeline import run_rebuild
 
-chunk_path = "result/20260522_124853/1.pkl"
+chunk_path = "result/20260523_144647/0.pkl"
 
 run_rebuild(chunk_path)

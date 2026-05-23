@@ -1,5 +1,5 @@
 from config import CHUNK_OVERLAP_SIZE, CHUNK_SIZE, KEY_FRAME_DELETE_RATIO, RESULT_DIR
-from .datatype import BaseFrame, Chunk, GPSLocation, OriginalFrames
+from .datatype import BaseFrame, Chunk, ChunkToProcess, FrameInChunk, GPSLocation, OriginalFrames
 from .frame_chunk import split_original_frames_into_chunks
 from .image_preprocess import preprocess_original_frames
 from .key_frame_select import FrameScore, select_key_frames
@@ -8,6 +8,7 @@ from .rebuild import (
     load_chunk,
     load_rebuild_predictions_for_glb,
     load_vggt_model,
+    npz_load,
     rebuild_chunk,
     rebuild_chunk_to_npz,
     rebuild_npz_to_glb,
@@ -20,6 +21,8 @@ __all__ = [
     "CHUNK_OVERLAP_SIZE",
     "CHUNK_SIZE",
     "Chunk",
+    "ChunkToProcess",
+    "FrameInChunk",
     "FrameScore",
     "GPSLocation",
     "KEY_FRAME_DELETE_RATIO",
@@ -29,6 +32,7 @@ __all__ = [
     "load_chunk",
     "load_rebuild_predictions_for_glb",
     "load_vggt_model",
+    "npz_load",
     "preprocess_original_frames",
     "rebuild_chunk",
     "rebuild_chunk_to_npz",
