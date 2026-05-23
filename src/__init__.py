@@ -1,4 +1,26 @@
-from config import CHUNK_OVERLAP_SIZE, CHUNK_SIZE, KEY_FRAME_DELETE_RATIO, RESULT_DIR
+from config import (
+    ALIGN_CONF_THRESHOLD,
+    ALIGN_IRLS_DELTA,
+    ALIGN_IRLS_MAX_ITERS,
+    ALIGN_MIN_POINTS,
+    CHUNK_OVERLAP_SIZE,
+    CHUNK_SIZE,
+    KEY_FRAME_DELETE_RATIO,
+    RESULT_DIR,
+)
+from .align import (
+    accumulate_sim3_transforms,
+    align,
+    align_chunk_to_processes,
+    align_chunks,
+    align_npz_files,
+    apply_sim3_to_points,
+    estimate_chunk_pair_sim3,
+    estimate_sim3,
+    extract_overlap_points,
+    robust_estimate_sim3,
+    save_aligned_chunks_npz,
+)
 from .datatype import BaseFrame, Chunk, ChunkToProcess, FrameInChunk, GPSLocation, OriginalFrames
 from .frame_chunk import split_original_frames_into_chunks
 from .image_preprocess import preprocess_original_frames
@@ -18,6 +40,10 @@ from .video_load import load_original_frames_from_video
 
 __all__ = [
     "BaseFrame",
+    "ALIGN_CONF_THRESHOLD",
+    "ALIGN_IRLS_DELTA",
+    "ALIGN_IRLS_MAX_ITERS",
+    "ALIGN_MIN_POINTS",
     "CHUNK_OVERLAP_SIZE",
     "CHUNK_SIZE",
     "Chunk",
@@ -28,7 +54,16 @@ __all__ = [
     "KEY_FRAME_DELETE_RATIO",
     "OriginalFrames",
     "RESULT_DIR",
+    "accumulate_sim3_transforms",
+    "align",
+    "align_chunk_to_processes",
+    "align_chunks",
+    "align_npz_files",
+    "apply_sim3_to_points",
     "chunk_to_vggt_images",
+    "estimate_chunk_pair_sim3",
+    "estimate_sim3",
+    "extract_overlap_points",
     "load_chunk",
     "load_rebuild_predictions_for_glb",
     "load_vggt_model",
@@ -38,6 +73,8 @@ __all__ = [
     "rebuild_chunk_to_npz",
     "rebuild_npz_to_glb",
     "save_rebuild_predictions",
+    "robust_estimate_sim3",
+    "save_aligned_chunks_npz",
     "select_key_frames",
     "split_original_frames_into_chunks",
     "load_original_frames_from_video",
