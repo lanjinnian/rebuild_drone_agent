@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 import pickle
 import sys
@@ -35,6 +36,9 @@ NPZ_LOAD_KEYS = [
     "frame_ids",
     "gps_locations",
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_vggt_model(
@@ -74,6 +78,12 @@ def load_chunk(chunk_path: str | Path) -> Chunk:
     if not isinstance(chunk, Chunk):
         raise TypeError(f"{chunk_path} does not contain a Chunk object")
 
+    logger.info(
+        "分块重新读取完成: path=%s, chunk_id=%s, frame_count=%d",
+        chunk_path,
+        chunk.id,
+        len(chunk.frames),
+    )
     return chunk
 
 
@@ -132,6 +142,11 @@ def save_rebuild_predictions(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(output_path, **predictions)
+    logger.info(
+        "每个分块重建完成: chunk_id=%s, output_path=%s",
+        np.array(predictions["chunk_id"]).item(),
+        output_path,
+    )
     return output_path
 
 

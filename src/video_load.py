@@ -1,8 +1,12 @@
+import logging
 from pathlib import Path
 
 import cv2
 
 from src.datatype import BaseFrame, OriginalFrames
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_original_frames_from_video(video_path: str | Path) -> OriginalFrames:
@@ -15,8 +19,16 @@ def load_original_frames_from_video(video_path: str | Path) -> OriginalFrames:
         raise ValueError(f"Could not open video file: {video_path}")
 
     fps = capture.get(cv2.CAP_PROP_FPS)
+    frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_interval = int(round(fps / 6)) if fps and fps > 0 else 5
     frame_interval = max(frame_interval, 1)
+    logger.info(
+        "读取视频成功: path=%s, fps=%.3f, total_frames=%d, frame_interval=%d",
+        video_path,
+        fps,
+        frame_count,
+        frame_interval,
+    )
 
     original_frames = OriginalFrames()
     source_frame_index = 0
@@ -42,4 +54,10 @@ def load_original_frames_from_video(video_path: str | Path) -> OriginalFrames:
     finally:
         capture.release()
 
+    logger.info(
+        "视频帧提取成功: path=%s, extracted_frames=%d, source_frames_read=%d",
+        video_path,
+        len(original_frames.frames),
+        source_frame_index,
+    )
     return original_frames

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from src.align import align
+from src.logging_utils import configure_logging, configure_task_file_logging
 from src.rebuild import npz_load, rebuild_npz_to_glb
+
+
+logger = logging.getLogger(__name__)
 
 
 def run_align_and_merge(
@@ -20,10 +25,12 @@ def run_align_and_merge(
     prediction_mode: str = "Predicted Pointmap",
 ) -> Path:
     """Align numbered chunk npz files in one folder and save a merged GLB there."""
+    configure_logging()
     if chunk_count <= 0:
         raise ValueError(f"chunk_count must be positive, got {chunk_count}")
 
     storage_dir = Path(storage_dir)
+    configure_task_file_logging(storage_dir)
     chunk_paths = [storage_dir / f"{index}.npz" for index in range(chunk_count)]
     missing_paths = [path for path in chunk_paths if not path.exists()]
     if missing_paths:
@@ -45,4 +52,5 @@ def run_align_and_merge(
         mask_sky=mask_sky,
         prediction_mode=prediction_mode,
     )
+    logger.info("最终输出模型: %s", merged_glb_path)
     return merged_glb_path

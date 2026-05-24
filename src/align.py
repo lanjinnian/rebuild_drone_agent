@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,9 @@ from config import (
 )
 from src.datatype import ChunkToProcess, FrameInChunk
 from src.rebuild import npz_load
+
+
+logger = logging.getLogger(__name__)
 
 
 Sim3 = tuple[float, NDArray[np.floating], NDArray[np.floating]]
@@ -202,13 +206,18 @@ def align_chunk_to_processes(
     if len(chunk_to_processes) == 1:
         return [chunk_to_processes[0]]
 
-    adjacent_transforms = [
-        estimate_chunk_pair_sim3(
-            chunk_to_processes[index],
-            chunk_to_processes[index + 1],
+    adjacent_transforms = []
+    for index in range(len(chunk_to_processes) - 1):
+        chunk_a = chunk_to_processes[index]
+        chunk_b = chunk_to_processes[index + 1]
+        transform = estimate_chunk_pair_sim3(chunk_a, chunk_b)
+        adjacent_transforms.append(transform)
+        logger.info(
+            "每组分块拼接完成: source_chunk_id=%s, target_chunk_id=%s, transform_matrix=%s",
+            chunk_b.chunk_id,
+            chunk_a.chunk_id,
+            np.array2string(_sim3_to_matrix(transform), precision=6, suppress_small=False),
         )
-        for index in range(len(chunk_to_processes) - 1)
-    ]
     cumulative_transforms = accumulate_sim3_transforms(adjacent_transforms)
 
     aligned_chunks = [chunk_to_processes[0]]
@@ -388,3 +397,11 @@ def _identity_intrinsics(frame_count: int) -> NDArray[np.float32]:
     intrinsic = np.zeros((frame_count, 3, 3), dtype=np.float32)
     intrinsic[:, :, :] = np.eye(3, dtype=np.float32)
     return intrinsic
+
+
+def _sim3_to_matrix(transform: Sim3) -> NDArray[np.float64]:
+    scale, rotation, translation = transform
+    matrix = np.eye(4, dtype=np.float64)
+    matrix[:3, :3] = scale * rotation
+    matrix[:3, 3] = translation
+    return matrix

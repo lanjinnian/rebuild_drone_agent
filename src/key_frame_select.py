@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 import numpy as np
 
@@ -11,6 +12,9 @@ from utils.calcula import (
     calculate_overlap_score,
     calculate_sharpness_score,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -49,6 +53,18 @@ def select_key_frames(
         if frame.id not in deleted_frame_ids:
             selected_frames.add_frame(frame)
 
+    logger.info(
+        "关键帧计算完成: total=%d, selected=%d, deleted=%d, delete_ratio=%.3f, "
+        "optical_flow=%s, overlap=%s, sharpness=%s, total_score=%s",
+        len(frame_scores),
+        len(selected_frames.frames),
+        delete_count,
+        delete_ratio,
+        _score_stats([frame_score.optical_flow_score for frame_score in frame_scores]),
+        _score_stats([frame_score.overlap_score for frame_score in frame_scores]),
+        _score_stats([frame_score.sharpness_score for frame_score in frame_scores]),
+        _score_stats([frame_score.total_score for frame_score in frame_scores]),
+    )
     return selected_frames
 
 
@@ -106,3 +122,14 @@ def _normalize_scores(scores: list[float]) -> list[float]:
 
     normalized = (values - min_value) / (max_value - min_value)
     return [float(score) for score in normalized]
+
+
+def _score_stats(scores: list[float]) -> str:
+    if not scores:
+        return "count=0"
+
+    values = np.asarray(scores, dtype=np.float64)
+    return (
+        f"count={values.size}, min={values.min():.6f}, max={values.max():.6f}, "
+        f"mean={values.mean():.6f}, std={values.std():.6f}"
+    )

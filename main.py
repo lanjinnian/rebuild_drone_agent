@@ -5,6 +5,7 @@ from pathlib import Path
 
 from config import RESULT_DIR
 from pipeline import run_align_and_merge, run_data_preprocess, run_rebuild
+from src.logging_utils import configure_logging
 
 
 def run_pipeline(video_path: str | Path, result_dir: str | Path = RESULT_DIR) -> Path:
@@ -61,6 +62,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    configure_logging()
     args = parse_args()
     glb_path = run_pipeline(args.video_path, result_dir=args.result_dir)
     print(glb_path)

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 
+from src.logging_utils import configure_logging, configure_task_file_logging
 from src.rebuild import load_chunk, load_vggt_model, rebuild_chunk_to_npz, rebuild_npz_to_glb
 
 
@@ -14,7 +15,9 @@ def run_rebuild(
     device: str | torch.device | None = None,
 ) -> Path:
     """Load one Chunk file, run reconstruction, and save npz beside it."""
+    configure_logging()
     chunk_path = Path(chunk_path)
+    configure_task_file_logging(chunk_path.parent)
     chunk = load_chunk(chunk_path)
     output_path = chunk_path.with_suffix(".npz")
 
@@ -45,6 +48,9 @@ def run_rebuild_to_glb(
     prediction_mode: str = "Predicted Pointmap",
 ) -> Path:
     """Convert one reconstruction npz file to GLB beside the npz by default."""
+    configure_logging()
+    npz_path = Path(npz_path)
+    configure_task_file_logging(npz_path.parent)
     return rebuild_npz_to_glb(
         npz_path=npz_path,
         output_path=output_path,

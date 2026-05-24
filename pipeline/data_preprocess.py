@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from pathlib import Path
 import pickle
 
@@ -9,7 +10,11 @@ from src.datatype import Chunk
 from src.frame_chunk import split_original_frames_into_chunks
 from src.image_preprocess import preprocess_original_frames
 from src.key_frame_select import select_key_frames
+from src.logging_utils import configure_logging, configure_task_file_logging
 from src.video_load import load_original_frames_from_video
+
+
+logger = logging.getLogger(__name__)
 
 
 def run_data_preprocess(
@@ -17,7 +22,11 @@ def run_data_preprocess(
     result_dir: str | Path = RESULT_DIR,
 ) -> list[Chunk]:
     """Run video loading, preprocessing, key-frame selection, chunking, and saving."""
+    configure_logging()
     task_id = _create_task_id()
+    task_dir = Path(result_dir) / task_id
+    log_path = configure_task_file_logging(task_dir)
+    logger.info("任务日志文件: %s", log_path)
 
     original_frames = load_original_frames_from_video(video_path)
     preprocessed_frames = preprocess_original_frames(original_frames)
@@ -42,6 +51,13 @@ def save_chunks(
         with chunk_path.open("wb") as file:
             pickle.dump(chunk, file)
 
+    logger.info(
+        "分块完成并保存: task_id=%s, task_dir=%s, chunk_count=%d, chunk_ids=%s",
+        task_id,
+        task_dir,
+        len(chunks),
+        [chunk.id for chunk in chunks],
+    )
     return task_dir
 
 

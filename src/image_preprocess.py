@@ -1,6 +1,11 @@
+import logging
+
 import cv2
 
 from src.datatype import BaseFrame, OriginalFrames
+
+
+logger = logging.getLogger(__name__)
 
 
 def preprocess_original_frames(frames: OriginalFrames) -> OriginalFrames:
@@ -18,6 +23,7 @@ def preprocess_original_frames(frames: OriginalFrames) -> OriginalFrames:
             )
         )
 
+    logger.info("所有视频帧处理完成: count=%d", len(preprocessed_frames.frames))
     return preprocessed_frames
 
 
