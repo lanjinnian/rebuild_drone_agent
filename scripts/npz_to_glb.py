@@ -14,7 +14,10 @@ from pipeline.rebuild import run_rebuild_to_glb
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Convert one VGGT-style reconstruction npz file to a GLB file.",
+        description=(
+            "Convert one VGGT-style reconstruction npz file to a GLB file. "
+            "If the npz contains masks, masked points are filtered from output."
+        ),
     )
     parser.add_argument(
         "npz_path",

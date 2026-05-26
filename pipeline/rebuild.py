@@ -1,39 +1,52 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 
 import torch
 
 from src.logging_utils import configure_logging, configure_task_file_logging
 from src.rebuild import load_chunk, load_vggt_model, rebuild_chunk_to_npz, rebuild_npz_to_glb
+from src.task_summary import ResourceStepMonitor, StepSummary
 
 
-def run_rebuild(
-    chunk_path: str | Path,
+def run_rebuild_chunks(
+    chunk_paths: list[str | Path],
     model: torch.nn.Module | None = None,
     model_name_or_path: str = "facebook/VGGT-1B",
     device: str | torch.device | None = None,
-) -> Path:
-    """Load one Chunk file, run reconstruction, and save npz beside it."""
+    summary_steps: list[StepSummary] | None = None,
+) -> list[Path]:
+    """Load the VGGT model once and rebuild multiple Chunk files."""
     configure_logging()
-    chunk_path = Path(chunk_path)
-    configure_task_file_logging(chunk_path.parent)
-    chunk = load_chunk(chunk_path)
-    output_path = chunk_path.with_suffix(".npz")
+    if not chunk_paths:
+        return []
+
+    paths = [Path(chunk_path) for chunk_path in chunk_paths]
+    configure_task_file_logging(paths[0].parent)
 
     if model is None:
-        model = load_vggt_model(
-            model_name_or_path=model_name_or_path,
-            device=device,
-        )
+        with _summary_step(summary_steps, "rebuild_model_load"):
+            model = load_vggt_model(
+                model_name_or_path=model_name_or_path,
+                device=device,
+            )
 
-    return rebuild_chunk_to_npz(
-        chunk=chunk,
-        output_path=output_path,
-        model=model,
-        model_name_or_path=model_name_or_path,
-        device=device,
-    )
+    output_paths: list[Path] = []
+    for chunk_path in paths:
+        with _summary_step(summary_steps, f"rebuild_chunk_{chunk_path.stem}"):
+            chunk = load_chunk(chunk_path)
+            output_paths.append(
+                rebuild_chunk_to_npz(
+                    chunk=chunk,
+                    output_path=chunk_path.with_suffix(".npz"),
+                    model=model,
+                    model_name_or_path=model_name_or_path,
+                    device=device,
+                )
+            )
+
+    return output_paths
 
 
 def run_rebuild_to_glb(
@@ -62,3 +75,14 @@ def run_rebuild_to_glb(
         mask_sky=mask_sky,
         prediction_mode=prediction_mode,
     )
+
+
+@contextmanager
+def _summary_step(summary_steps: list[StepSummary] | None, name: str):
+    if summary_steps is None:
+        yield
+        return
+
+    with ResourceStepMonitor(name) as monitor:
+        yield
+    summary_steps.append(monitor.summary())

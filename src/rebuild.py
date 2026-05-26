@@ -120,6 +120,7 @@ def rebuild_chunk(
 
     np_predictions = _tensor_predictions_to_numpy(predictions)
     np_predictions["pose_enc_list"] = None
+    np_predictions["images"] = images.detach().cpu().numpy()
 
     depth_map = np_predictions["depth"]
     np_predictions["world_points_from_depth"] = unproject_depth_map_to_point_map(
@@ -130,6 +131,10 @@ def rebuild_chunk(
     np_predictions["chunk_id"] = np.array(chunk.id)
     np_predictions["frame_ids"] = np.array(chunk.frame_ids, dtype=np.int64)
     np_predictions["gps_locations"] = _chunk_gps_locations(chunk)
+    np_predictions["masks"] = chunk_to_vggt_masks(chunk).numpy().astype(
+        np_predictions["images"].dtype,
+        copy=False,
+    )
 
     return np_predictions
 
@@ -143,7 +148,7 @@ def save_rebuild_predictions(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(output_path, **predictions)
     logger.info(
-        "每个分块重建完成: chunk_id=%s, output_path=%s",
+        "分块重建完成: chunk_id=%s, output_path=%s",
         np.array(predictions["chunk_id"]).item(),
         output_path,
     )
@@ -161,6 +166,7 @@ def npz_load(npz_path: str | Path) -> ChunkToProcess:
         world_points_from_depth = np.array(loaded["world_points_from_depth"])
         depth_conf = np.array(loaded["depth_conf"])
         images = np.array(loaded["images"])
+        masks = np.array(loaded["masks"]) if "masks" in loaded.files else None
         chunk_id = int(np.array(loaded["chunk_id"]).item())
         frame_ids = np.array(loaded["frame_ids"])
         gps_locations = np.array(loaded["gps_locations"])
@@ -174,6 +180,8 @@ def npz_load(npz_path: str | Path) -> ChunkToProcess:
         images=images,
         gps_locations=gps_locations,
     )
+    if masks is not None:
+        _validate_npz_load_frame_count(npz_path, frame_count, masks=masks)
 
     chunk_to_process = ChunkToProcess(chunk_id=chunk_id, frames=[], frame_ids=[])
     for frame_index, frame_id in enumerate(frame_ids):
@@ -181,6 +189,7 @@ def npz_load(npz_path: str | Path) -> ChunkToProcess:
             id=int(frame_id),
             image=images[frame_index],
             gps_location=tuple(gps_locations[frame_index]),
+            mask=None if masks is None else masks[frame_index],
             chunk_id=chunk_id,
             world_points=world_points_from_depth[frame_index],
             world_points_conf=depth_conf[frame_index],
@@ -230,7 +239,10 @@ def load_rebuild_predictions_for_glb(npz_path: str | Path) -> dict[str, NDArray[
         missing_keys = [key for key in VGGT_GLB_KEYS if key not in loaded.files]
         if missing_keys:
             raise KeyError(f"{npz_path} is missing GLB prediction keys: {missing_keys}")
-        return {key: np.array(loaded[key]) for key in VGGT_GLB_KEYS}
+        predictions = {key: np.array(loaded[key]) for key in VGGT_GLB_KEYS}
+        if "masks" in loaded.files:
+            predictions["masks"] = np.array(loaded["masks"])
+        return predictions
 
 
 def _validate_npz_load_frame_count(
@@ -264,6 +276,7 @@ def rebuild_predictions_to_glb_scene(
         prediction_mode,
     )
     images = _images_to_nhwc(predictions["images"])
+    remove_masks = _optional_masks_to_nhwc(predictions.get("masks"))
 
     world_points, confidence, images = _select_glb_frame(
         world_points,
@@ -271,6 +284,8 @@ def rebuild_predictions_to_glb_scene(
         images,
         filter_by_frames,
     )
+    if remove_masks is not None:
+        remove_masks = _select_glb_optional_frame(remove_masks, filter_by_frames)
 
     vertices = world_points.reshape(-1, 3)
     colors = (np.clip(images.reshape(-1, 3), 0.0, 1.0) * 255.0).astype(np.uint8)
@@ -283,6 +298,12 @@ def rebuild_predictions_to_glb_scene(
         mask_black_bg,
         mask_white_bg,
     )
+    if remove_masks is not None:
+        remove_mask = _resize_remove_masks_for_points(
+            remove_masks,
+            world_points.shape[:3],
+        ).reshape(-1)
+        mask = mask & ~remove_mask
     vertices = vertices[mask]
     colors = colors[mask]
 
@@ -320,6 +341,20 @@ def _images_to_nhwc(images: NDArray[np.floating]) -> NDArray[np.floating]:
     raise ValueError(f"images must have 3 color channels, got {images.shape}")
 
 
+def _optional_masks_to_nhwc(masks: Any) -> NDArray[Any] | None:
+    if masks is None:
+        return None
+
+    mask_array = np.asarray(masks)
+    if mask_array.ndim == 3:
+        return mask_array[:, :, :, None]
+    if mask_array.ndim != 4:
+        raise ValueError(f"masks must have shape [S,H,W], [S,C,H,W], or [S,H,W,C], got {mask_array.shape}")
+    if mask_array.shape[1] in (1, 3, 4) and mask_array.shape[-1] not in (1, 3, 4):
+        return np.transpose(mask_array, (0, 2, 3, 1))
+    return mask_array
+
+
 def _select_glb_frame(
     points: NDArray[np.floating],
     confidence: NDArray[np.floating],
@@ -331,6 +366,41 @@ def _select_glb_frame(
 
     frame_index = int(filter_by_frames.split(":")[0])
     return points[frame_index][None], confidence[frame_index][None], images[frame_index][None]
+
+
+def _select_glb_optional_frame(
+    values: NDArray[Any],
+    filter_by_frames: str,
+) -> NDArray[Any]:
+    if filter_by_frames in ("all", "All"):
+        return values
+
+    frame_index = int(filter_by_frames.split(":")[0])
+    return values[frame_index][None]
+
+
+def _resize_remove_masks_for_points(
+    masks: NDArray[Any],
+    point_shape: tuple[int, int, int],
+) -> NDArray[np.bool_]:
+    frame_count, point_height, point_width = point_shape
+    if masks.shape[0] != frame_count:
+        raise ValueError(
+            f"masks frame count {masks.shape[0]} does not match points frame count {frame_count}"
+        )
+
+    remove_masks = []
+    for mask in masks:
+        mask_2d = np.any(mask > 0, axis=-1)
+        if mask_2d.shape != (point_height, point_width):
+            mask_2d = cv2.resize(
+                mask_2d.astype(np.uint8),
+                (point_width, point_height),
+                interpolation=cv2.INTER_NEAREST,
+            ).astype(bool)
+        remove_masks.append(mask_2d.astype(bool))
+
+    return np.stack(remove_masks)
 
 
 def _build_glb_point_mask(
@@ -401,6 +471,20 @@ def chunk_to_vggt_images(chunk: Chunk, target_size: int = VGGT_TARGET_SIZE) -> t
     return torch.stack(tensors)
 
 
+def chunk_to_vggt_masks(chunk: Chunk, target_size: int = VGGT_TARGET_SIZE) -> torch.Tensor:
+    """Convert Chunk frame masks to the same tensor layout as VGGT images."""
+    if not chunk.frames:
+        raise ValueError(f"chunk {chunk.id} has no frames")
+
+    tensors = []
+    for frame in chunk.frames:
+        mask = _prepare_frame_mask(frame.mask, target_size)
+        tensor = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
+        tensors.append(tensor)
+
+    return torch.stack(tensors)
+
+
 def _ensure_vggt_reference_importable() -> None:
     if VGGT_REFERENCE_DIR.exists():
         vggt_reference_path = str(VGGT_REFERENCE_DIR)
@@ -443,6 +527,12 @@ def _prepare_frame_image(image: NDArray[np.uint8], target_size: int) -> NDArray[
     return np.ascontiguousarray(image)
 
 
+def _prepare_frame_mask(mask: NDArray[np.uint8], target_size: int) -> NDArray[np.uint8]:
+    mask = _ensure_rgb_mask(mask)
+    mask = _resize_for_vggt_mask(mask, target_size)
+    return np.ascontiguousarray(mask)
+
+
 def _ensure_rgb_image(image: NDArray[np.uint8]) -> NDArray[np.uint8]:
     if image.ndim == 2:
         return cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
@@ -456,6 +546,19 @@ def _ensure_rgb_image(image: NDArray[np.uint8]) -> NDArray[np.uint8]:
         raise ValueError(f"frame image must have 1, 3, or 4 channels, got {image.shape[2]}")
 
     return image
+
+
+def _ensure_rgb_mask(mask: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    if mask.ndim == 2:
+        return cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
+
+    if mask.shape[2] == 4:
+        return mask[:, :, :3]
+
+    if mask.shape[2] != 3:
+        raise ValueError(f"frame mask must have 1, 3, or 4 channels, got {mask.shape[2]}")
+
+    return mask
 
 
 def _resize_for_vggt(image: NDArray[np.uint8], target_size: int) -> NDArray[np.uint8]:
@@ -480,10 +583,33 @@ def _resize_for_vggt(image: NDArray[np.uint8], target_size: int) -> NDArray[np.u
     return _pad_to_shape(image, target_size, target_size)
 
 
+def _resize_for_vggt_mask(mask: NDArray[np.uint8], target_size: int) -> NDArray[np.uint8]:
+    height, width = mask.shape[:2]
+    if height <= 0 or width <= 0:
+        raise ValueError(f"frame mask has invalid shape {mask.shape}")
+
+    new_width = target_size
+    new_height = round(height * (new_width / width) / 14) * 14
+    new_height = max(new_height, 14)
+
+    mask = cv2.resize(
+        mask,
+        (new_width, new_height),
+        interpolation=cv2.INTER_NEAREST,
+    )
+
+    if new_height > target_size:
+        start_y = (new_height - target_size) // 2
+        mask = mask[start_y : start_y + target_size, :, :]
+
+    return _pad_to_shape(mask, target_size, target_size, value=(0, 0, 0))
+
+
 def _pad_to_shape(
     image: NDArray[np.uint8],
     target_height: int,
     target_width: int,
+    value: tuple[int, int, int] = (255, 255, 255),
 ) -> NDArray[np.uint8]:
     height, width = image.shape[:2]
     height_padding = target_height - height
@@ -504,7 +630,7 @@ def _pad_to_shape(
         pad_left,
         pad_right,
         cv2.BORDER_CONSTANT,
-        value=(255, 255, 255),
+        value=value,
     )
 
 

@@ -15,16 +15,34 @@ def preprocess_original_frames(frames: OriginalFrames) -> OriginalFrames:
         image = _equalize_illumination(image)
         image = _resize_for_vggt(image)
         image = _pad_to_shape(image, 518, 518)
+        mask = _prepare_mask(frame.mask)
         preprocessed_frames.add_frame(
             BaseFrame(
                 id=frame.id,
                 image=image,
                 gps_location=frame.gps_location,
+                mask=mask,
             )
         )
 
     logger.info("所有视频帧处理完成: count=%d", len(preprocessed_frames.frames))
     return preprocessed_frames
+
+
+def _prepare_mask(mask):
+    mask = _ensure_mask_channels(mask)
+    mask = _resize_for_vggt(mask)
+    return _pad_to_shape(mask, 518, 518, value=(0, 0, 0))
+
+
+def _ensure_mask_channels(mask):
+    if mask.ndim == 2:
+        return cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
+
+    if mask.shape[2] == 4:
+        return mask[:, :, :3]
+
+    return mask
 
 
 def _ensure_rgb_image(image):
@@ -68,7 +86,12 @@ def _resize_for_vggt(image, target_size: int = 518):
     return image
 
 
-def _pad_to_shape(image, target_height: int, target_width: int):
+def _pad_to_shape(
+    image,
+    target_height: int,
+    target_width: int,
+    value=(255, 255, 255),
+):
     height, width = image.shape[:2]
     height_padding = target_height - height
     width_padding = target_width - width
@@ -88,5 +111,5 @@ def _pad_to_shape(image, target_height: int, target_width: int):
         pad_left,
         pad_right,
         cv2.BORDER_CONSTANT,
-        value=(255, 255, 255),
+        value=value,
     )

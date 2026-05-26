@@ -13,6 +13,23 @@ class BaseFrame:
     id: int
     image: NDArray[np.uint8]
     gps_location: GPSLocation | None
+    mask: NDArray[np.uint8] | None = field(default=None, kw_only=True)
+
+    def __post_init__(self) -> None:
+        if self.mask is None:
+            self.mask = np.zeros_like(self.image)
+            return
+
+        if self.mask.shape != self.image.shape:
+            raise ValueError(
+                f"frame mask shape {self.mask.shape} does not match image shape "
+                f"{self.image.shape}"
+            )
+        if self.mask.dtype != self.image.dtype:
+            raise ValueError(
+                f"frame mask dtype {self.mask.dtype} does not match image dtype "
+                f"{self.image.dtype}"
+            )
 
 
 @dataclass
